@@ -57,26 +57,27 @@
      on, and if you don't decide it here you'll discover it as a crash in
      Milestone 5. -->
 
-### `search_listings`
+### 1. `search_listings`
 
-- **What it does:**
-- **Inputs:** <!-- name and type each: `max_price` (float), not "a price" -->
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Searches the clothing listings dataset for items matching the user's description, optional size, and optional maximum price.
+- **Inputs:** `description: str`, `size: str | None`, `max_price: float | None`.
+- **Returns:** A list of listing dictionaries containing item details such as title, description, category, size, price, colors, style tags, brand, and platform, sorted by relevance.
+- **When no results match:** Returns an empty list `[]`.
+- **Size matching rule:** Case-insensitive size matching; `S/M` matches `S` or `M`, but `M` does not match `XL`.
 
-### `suggest_outfit`
+### 2. `suggest_outfit`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Suggests one or two outfits using a selected clothing item and the user's existing wardrobe.
+- **Inputs:** `new_item: dict`, `wardrobe: dict`.
+- **Returns:** A non-empty string containing outfit suggestions.
+- **When the wardrobe is empty:** Returns general styling suggestions for the selected item.
 
-### `create_fit_card`
+### 3. `create_fit_card`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Creates a short, social-media-style caption for the selected clothing item and suggested outfit.
+- **Inputs:** `outfit: str`, `new_item: dict`.
+- **Returns:** A two-to-four-sentence caption mentioning the item, price, platform, and overall style.
+- **When the outfit is empty:** Returns a descriptive message instead of raising an error.
 
 ---
 

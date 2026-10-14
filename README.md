@@ -39,8 +39,7 @@
 
 ## What This Does
 
-<!-- Three or four sentences: what a user asks for, and what they get back. -->
-
+FitFindr is an AI-powered clothing discovery and outfit styling assistant. It searches clothing listings based on a user's description, size, and maximum price. It then uses AI to suggest outfits that combine the selected item with pieces from the user's existing wardrobe. Finally, it creates a short, social-media-style fit card caption for the selected clothing item.
 
 
 ---
@@ -83,56 +82,73 @@
 
 ## Planning Loop
 
-<!-- Your branch rule, stated as a rule — the condition AND both paths — plus
-     the file and function that holds it.
+The planning loop is implemented in `agent.py` inside `run_agent()`.
 
-     Like this:
-       "If search_listings returns an empty list, put a message in the session
-        and stop. Otherwise take the first result and go to suggest_outfit."
-        — agent.py::run_agent
+1. **Parse the query:** Extract the clothing description, requested size, and maximum price from the user's query.
+2. **Search listings:** Call `search_listings()` with the parsed description and filters.
+3. **Check the search results:** If no listings match, save a helpful error message in the session and stop before calling the next tool.
+4. **Suggest an outfit:** If a listing is found, save the first result as `session["selected_item"]` and pass it to `suggest_outfit()` along with the user's wardrobe.
+5. **Create a fit card:** Pass the outfit suggestion and selected listing to `create_fit_card()`.
+6. **Return the session:** Return the session containing the search results, selected item, outfit suggestion, and fit card.
 
-     The grader checks your code against what you claim here, so the file and
-     function have to be real. -->
+**Branch rule:** After searching, if the results are empty, stop immediately. Otherwise, continue to outfit suggestion and then fit-card creation.
 
-**Branch rule:**
-
-**Where it lives:** `agent.py::run_agent`
-
-**How the query is parsed:** <!-- regex, string splitting, or asking the model — say which -->
-
-**What moves through the session:** <!-- which fields, in what order -->
+The loop uses `trace.check_iterations()` to enforce the iteration limit. The agent returns a helpful error if the outfit-generation model is unavailable.
 
 ---
 
 ## Sample Run
 
-<!-- Two things go here.
+### One Full Query
 
-     1. One FULL query and its output, pasted as text.
-     2. Your three per-tool terminal tests — the command and what it printed. -->
-
-**One full query**
-
-```
-$ python app.py ask '...'
-
+**Command:**
+```text
+python app.py ask 'Y2K baby tee'
 ```
 
-**The three tools, tested one at a time**
+**Output:**
+```text
+Found: Y2K Baby Tee — Butterfly Print — $18.0 on depop
 
+Outfit: Hey there! I am so excited to style your new Y2K Baby Tee with the butterfly print. The 2000s aesthetic is all about playing with proportions—balancing those tight, cropped silhouettes with looser bottoms—and you have some fantastic pieces in your wardrobe to pull this off.
+
+Two outfit suggestions were generated:
+1. Classic Y2K Streetwear — baggy straight-leg jeans, vintage black denim jacket, chunky white sneakers, and a black crossbody bag.
+2. Edgy Casual Contrast — black cropped zip hoodie, wide-leg khaki trousers, brown leather belt, and black combat boots.
+
+Fit card: Still obsessed with this Y2K Baby Tee — Butterfly Print I just scored on depop for $18.0. It gives off the ultimate 2000s popstar-meets-skater vibe when paired with baggy denim and chunky sneakers. Perfect little cropped fit for everyday wear.
 ```
-$ python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
 
+### Three Individual Tool Tests
+
+#### 1. search_listings
+
+**Command:**
+```text
+python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
 ```
 
-```
-$ python -c "from tools import suggest_outfit; ..."
+**Result:** Returned matching clothing listings, including the Y2K Baby Tee for $18, a Graphic Tee for $24, and other listings priced at $30 or less.
 
+#### 2. suggest_outfit
+
+**Command:**
+```text
+python -c "from tools import suggest_outfit; from utils.data_loader import get_example_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_example_wardrobe()))"
 ```
 
-```
-$ python -c "from tools import create_fit_card; ..."
+**Result:** Generated two outfit suggestions for the Vintage Levi's 501 Jeans using wardrobe items, including an oversized grey crewneck sweatshirt, chunky white sneakers, a white ribbed tank top, and a vintage black denim jacket.
 
+#### 3. create_fit_card
+
+**Command:**
+```text
+python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('jeans and white sneakers', load_listings()[0]))"
+```
+
+**Result:**
+```text
+Score! I finally tracked down these Vintage Levi's 501 Jeans — Medium Wash on depop and they fit like an absolute dream. The lived-in fade at the knees gives them that effortless 90s streetwear vibe I've been hunting for. Snagged them for just $38.00 and honestly, I don't think I'm ever taking them off.
 ```
 
 ---
@@ -148,15 +164,15 @@ $ python -c "from tools import create_fit_card; ..."
 
 **Moment 1**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* Help implementing `search_listings` with keyword matching and size and price filters.
+- *What came back:* An implementation that searches clothing listings and applies the requested filters.
+- *What I changed:* I ran the tool test with `graphic tee` and a maximum price of $30 to check the returned results.
 
 **Moment 2**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* Help implementing the agent planning loop for the FitFindr application.
+- *What came back:* A flow that searches listings, suggests outfits, and creates a fit card, with a branch for when no listings match.
+- *What I changed:* I tested the normal query and the no-results case to verify that the agent stops when no listings are found.
 
 <!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
 

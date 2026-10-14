@@ -25,9 +25,10 @@ Given a query that matches at least one listing, the agent completes all three
 tool calls and returns a fit card — in at least 4 of 5 tries.
 
 **Why this target:**
-<!-- Why 4 of 5 and not 5 of 5? Something about your search, probably —
-     "my search is a plain keyword match and some phrasings will miss" is a
-     real answer. -->
+
+I chose 4 out of 5 because the search uses keyword matching, so some valid
+queries may not find a listing. The outfit and fit-card tools also depend on
+the AI model being available.
 
 ---
 
@@ -37,26 +38,25 @@ Given a query that matches no listings, the agent stops before calling
 `suggest_outfit` and returns a message naming what to change — 5 of 5 tries.
 
 **Why this target:**
-<!-- Why is 5 of 5 reasonable here when criterion 1 isn't? What's different
-     about this path? -->
+
+This should happen in every attempt because the agent checks whether the
+search results are empty before calling the outfit tool. It can stop without
+needing another AI model response.
 
 ---
 
 ## 3. Something about state
 
-<!-- YOU WRITE THIS ONE.
+## 3. The selected item reaches the outfit tool correctly
 
-     How would you know that the item your search found is the same item the
-     next tool received? Name something countable or observable.
-
-     This is the criterion people find hardest, because state failure doesn't
-     look like state failure — it looks like a tool problem. Something that
-     compares session["selected_item"] against what actually reached
-     suggest_outfit is the shape you're after. -->
-
-
+For 5 out of 5 matching-query tests, the item stored in
+`session["selected_item"]` must match the item passed as `new_item` to
+`suggest_outfit`.
 
 **Why this target:**
+
+The outfit suggestion must be based on the item found by search. Passing a
+different item could produce an outfit for the wrong clothing item.
 
 
 
@@ -64,20 +64,16 @@ Given a query that matches no listings, the agent stops before calling
 
 ## 4. Something about the fit card
 
-<!-- YOU WRITE THIS ONE.
+## 4. The fit card includes important item details
 
-     The fit card calls a model, so the same input can produce different words
-     each time. That's not a bug — it's the nature of the tool. So what would
-     make it acceptable?
-
-     Think about what you'd actually be unhappy to see. A caption that never
-     mentions the price? Two different items producing the same opening
-     sentence? A card longer than a caption anyone would post? Any of those can
-     be turned into a number. -->
-
-
+For 5 out of 5 successful fit-card tests, the caption must mention the
+selected item's title and price and contain between 2 and 4 sentences.
 
 **Why this target:**
+
+The fit card should be a short caption that someone can share. Including the
+title and price makes it specific to the listing, while the sentence limit
+keeps it concise.
 
 
 
@@ -85,16 +81,16 @@ Given a query that matches no listings, the agent stops before calling
 
 ## 5. Your choice
 
-<!-- YOU WRITE THIS ONE TOO.
+## 5. The search respects size and price limits
 
-     Pick something you actually care about getting right. Speed, the empty
-     wardrobe path, what happens when the model can't be reached, whether the
-     search respects a price ceiling — anything, as long as it names a number
-     or an observable outcome. -->
-
-
+For 5 out of 5 tests using queries with a size and maximum price, every
+returned listing must match the requested size and cost no more than the
+maximum price.
 
 **Why this target:**
+
+Users need reliable filters when shopping for a particular size or within a
+budget. The search tool should enforce these limits before returning results.
 
 
 

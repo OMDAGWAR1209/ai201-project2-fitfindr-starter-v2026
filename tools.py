@@ -32,54 +32,78 @@ def search_listings(
     size: str | None = None,
     max_price: float | None = None,
 ) -> list[dict]:
-    """
-    Search the listings data for items matching a description, and optionally a
-    size and a price ceiling.
+    """Search listings by keywords, size, and maximum price."""
+    import re
 
-    This is the tool that doesn't call the model, which makes it the easiest one
-    to test and the one to move onto MCP in unit 4.
+    listings = load_listings()
+    query_text = description.lower()
 
-    Args:
-        description: keywords describing what the user wants
-                     (e.g. "vintage graphic tee").
-        size:        a size string to filter by, or None to skip size filtering.
-                     Match case-insensitively — "M" should match "S/M".
+    # Extract a price limit such as "under $5".
+    price_match = re.search(
+        r"\bunder\s+\$?(\d+(?:\.\d+)?)",
+        query_text,
+    )
+    if max_price is None and price_match:
+        max_price = float(price_match.group(1))
 
-                     ⚠️ Read the sizes in the data before you reach for a plain
-                     substring test. `"s" in "us 9"` is True, and so is
-                     `"l" in "xl"`. A filter that returns shoes when someone
-                     asked for a small top reads like a broken search, and it
-                     will quietly cost you in unit 4 when you test criterion 1.
-                     What counts as a size match is part of your spec — decide
-                     it and write it into your Tool Inventory.
-        max_price:   maximum price, inclusive, or None to skip price filtering.
+    query_text = re.sub(
+        r"\bunder\s+\$?\d+(?:\.\d+)?",
+        "",
+        query_text,
+    )
 
-    Returns:
-        A list of matching listing dicts, best match first.
-        **Returns an empty list when nothing matches — an empty list, not None,
-        and not an exception.** Your loop branches on this.
+    # Extract a size such as "size XXS".
+    size_match = re.search(
+        r"\bsize\s+([a-z0-9]+(?:/[a-z0-9]+)?)",
+        query_text,
+    )
+    if size is None and size_match:
+        size = size_match.group(1)
 
-    Each listing dict has these fields:
-        id, title, description, category, style_tags (list), size,
-        condition, price (float), colors (list), brand (str or None), platform
+    query_text = re.sub(r"\bsize\s+[a-z0-9]+(?:/[a-z0-9]+)?", "", query_text)
+    query_words = set(re.findall(r"[a-z0-9]+", query_text))
+    query_words -= {"a", "an", "the", "for", "and", "under", "size"}
 
-    Note that `brand` is None for most listings. That is deliberate and
-    realistic — thrift listings often have no brand. If something you write
-    assumes a brand is always there, you will find out in unit 4.
+    def size_matches(listing_size: str, requested_size: str) -> bool:
+        def tokens(value: str) -> set[str]:
+            return set(re.findall(r"[a-z]+|\d+", value.lower()))
 
-    TODO:
-        1. Load every listing with load_listings().
-        2. Filter by max_price and by size, when each is provided.
-        3. Score what's left by keyword overlap with `description`.
-        4. Drop anything scoring zero.
-        5. Sort by score, highest first, and return the listing dicts —
-           at most config.SEARCH_RESULT_LIMIT of them.
+        requested = tokens(requested_size)
+        available = tokens(listing_size)
+        return bool(requested & available)
 
-    Test it from a terminal before you move on:
-        python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
-    """
-    # TODO: replace this with your implementation
-    return []
+    scored_results = []
+
+    for listing in listings:
+        if max_price is not None and listing["price"] > max_price:
+            continue
+
+        if size is not None and not size_matches(
+            listing.get("size", ""), size
+        ):
+            continue
+
+        searchable_text = " ".join([
+            listing.get("title") or "",
+            listing.get("description") or "",
+            listing.get("category") or "",
+            " ".join(listing.get("style_tags") or []),
+            " ".join(listing.get("colors") or []),
+            listing.get("brand") or "",
+        ]).lower()
+
+        listing_words = set(re.findall(r"[a-z0-9]+", searchable_text))
+        score = len(query_words & listing_words)
+
+        if score > 0:
+            scored_results.append((score, listing))
+
+    scored_results.sort(key=lambda item: item[0], reverse=True)
+
+    return [
+        listing
+        for score, listing in scored_results[:config.SEARCH_RESULT_LIMIT]
+    ]
 
 
 # ── Tool 2: suggest_outfit ────────────────────────────────────────────────────
@@ -112,9 +136,43 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
     Test it from a terminal before you move on:
         python -c "from tools import suggest_outfit; from utils.data_loader import get_example_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_example_wardrobe()))"
     """
-    # TODO: replace this with your implementation
-    return ""
+    items = wardrobe.get("items", [])
 
+    item_details = (
+        f"Item: {new_item.get('title', 'Clothing item')}\n"
+        f"Description: {new_item.get('description', '')}\n"
+        f"Category: {new_item.get('category', '')}\n"
+        f"Colors: {', '.join(new_item.get('colors') or [])}\n"
+        f"Price: ${new_item.get('price', 'unknown')}"
+    )
+
+    if not items:
+        prompt = (
+            "You are a helpful personal fashion stylist. Suggest two practical "
+            "ways to style this thrifted item. Include suitable colors, shoes, "
+            "and accessories. The user's wardrobe is empty, so give general "
+            "suggestions without claiming they own specific clothes.\n\n"
+            f"{item_details}"
+        )
+    else:
+        wardrobe_details = "\n".join(
+            f"- {item}" for item in items
+        )
+        prompt = (
+            "You are a helpful personal fashion stylist. Suggest two outfits "
+            "using the new item and pieces from the user's existing wardrobe. "
+            "Name the actual wardrobe pieces, explain why they match, and "
+            "suggest suitable shoes or accessories. Do not invent wardrobe "
+            "items.\n\n"
+            f"NEW ITEM:\n{item_details}\n\n"
+            f"EXISTING WARDROBE:\n{wardrobe_details}"
+        )
+
+    response = generate(prompt)
+    return str(response).strip() or (
+        f"Try styling {new_item.get('title', 'this item')} with complementary "
+        "colors and simple accessories."
+    )
 
 # ── Tool 3: create_fit_card ───────────────────────────────────────────────────
 
@@ -152,5 +210,38 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
     Test it from a terminal before you move on:
         python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('jeans and white sneakers', load_listings()[0]))"
     """
-    # TODO: replace this with your implementation
-    return ""
+    if not outfit or not outfit.strip():
+        return (
+            f"{new_item.get('title', 'This item')} is a "
+            f"{new_item.get('condition', 'pre-loved')} find listed for "
+            f"${new_item.get('price', 'an unknown price')} on "
+            f"{new_item.get('platform', 'a resale platform')}. "
+            "Style it with complementary colors and accessories for a look "
+            "that suits your personal vibe."
+        )
+
+    item_details = (
+        f"Title: {new_item.get('title', 'Clothing find')}\n"
+        f"Description: {new_item.get('description', '')}\n"
+        f"Price: ${new_item.get('price', 'unknown')}\n"
+        f"Platform: {new_item.get('platform', 'unknown')}\n"
+        f"Style tags: {', '.join(new_item.get('style_tags') or [])}\n"
+        f"Suggested outfit: {outfit}"
+    )
+
+    prompt = (
+        "Write one authentic social-media caption for a thrift-fashion find. "
+        "Use 2 to 4 sentences. Mention the item's title, its exact price, "
+        "and the selling platform exactly once each. Describe a specific "
+        "fashion vibe and make the caption sound natural, not like an ad. "
+        "Do not invent details or add hashtags unless they fit naturally.\n\n"
+        f"{item_details}"
+    )
+
+    response = generate(prompt)
+    return str(response).strip() or (
+        f"Found {new_item.get('title', 'a thrifted piece')} for "
+        f"${new_item.get('price', 'an unknown price')} on "
+        f"{new_item.get('platform', 'a resale platform')} — "
+        "a versatile find for a vintage-inspired look."
+    )

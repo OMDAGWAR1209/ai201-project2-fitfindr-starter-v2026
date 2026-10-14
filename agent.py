@@ -105,10 +105,99 @@ def run_agent(query: str, wardrobe: dict) -> dict:
       • A handler for ModelUnavailable, so a bad key produces a message rather
         than a stack trace. The import is already at the top of this file.
     """
+def run_agent(query: str, wardrobe: dict) -> dict:
+    """Run the FitFindr planning loop and return the finished session."""
+    import re
+
     session = new_session(query, wardrobe)
 
-    # TODO: delete these two lines and build the loop.
-    session["error"] = "The planning loop isn't built yet — see the TODO in agent.py."
+    # Step 1: Parse the user's request using regular expressions.
+    parsed_query = query.lower().strip()
+
+    price_match = re.search(
+        r"\bunder\s+\$?(\d+(?:\.\d+)?)",
+        parsed_query,
+    )
+    max_price = float(price_match.group(1)) if price_match else None
+
+    size_match = re.search(
+        r"\bsize\s+([a-z0-9]+(?:/[a-z0-9]+)?)",
+        parsed_query,
+    )
+    size = size_match.group(1) if size_match else None
+
+    description = re.sub(
+        r"\bunder\s+\$?\d+(?:\.\d+)?",
+        "",
+        parsed_query,
+    )
+    description = re.sub(
+        r"\bsize\s+[a-z0-9]+(?:/[a-z0-9]+)?",
+        "",
+        description,
+    )
+    description = re.sub(
+        r"^(looking for|i want|find me|find|search for)\s+",
+        "",
+        description,
+    ).strip()
+
+    session["parsed"] = {
+        "description": description,
+        "size": size,
+        "max_price": max_price,
+    }
+
+    # Step 2: Plan the next action based on the previous result.
+    next_step = "search"
+    count = 0
+
+    while next_step is not None:
+        count += 1
+        trace.check_iterations(count)
+
+        if next_step == "search":
+            results = search_listings(
+                description=description,
+                size=size,
+                max_price=max_price,
+            )
+            session["search_results"] = results
+
+            # IMPORTANT: Stop if the search returns no matches.
+            if not results:
+                session["error"] = (
+                    "No matching listings were found. Try a broader item "
+                    "description, a different size, or a higher price limit."
+                )
+                return session
+
+            session["selected_item"] = results[0]
+            next_step = "outfit"
+
+        elif next_step == "outfit":
+            try:
+                outfit = suggest_outfit(
+                    session["selected_item"],
+                    session["wardrobe"],
+                )
+            except ModelUnavailable as exc:
+                session["error"] = (
+                    "The AI model is temporarily unavailable. "
+                    "Check your internet connection and try again. "
+                    f"Details: {exc}"
+                )
+                return session
+
+            session["outfit_suggestion"] = outfit
+            next_step = "fit_card"
+        elif next_step == "fit_card":
+            session["fit_card"] = create_fit_card(
+                session["outfit_suggestion"],
+                session["selected_item"],
+            )
+            next_step = None
+
     return session
 
 
